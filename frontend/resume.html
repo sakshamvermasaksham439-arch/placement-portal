@@ -1,0 +1,18 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resume</title><link rel="stylesheet" href="css/style.css"></head>
+<body><main><div class="card"><h2>Profile & Resume</h2>
+<div class="row"><input id="branch" placeholder="Branch (e.g. CSE)"><input id="cgpa" type="number" step="0.01" placeholder="CGPA"></div>
+<button class="btn" id="save">Save profile</button><hr>
+<input id="file" type="file" accept="application/pdf"><button class="btn" id="up">Upload resume (PDF, max 2 MB)</button>
+<p id="msg"></p><div id="skills"></div></div></main>
+<script type="module">
+import { api, requireAuth, navbar, esc } from './js/api.js';
+navbar(requireAuth('student'));
+const show = (s = []) => skills.innerHTML = s.length ? '<b>Detected skills:</b> ' + s.map(x => `<span class="badge ok">${esc(x)}</span>`).join('') : '';
+const { data } = await api('/profile'); branch.value = data?.branch || ''; cgpa.value = data?.cgpa || ''; show(data?.skills);
+save.onclick = async () => { try { await api('/profile', { method: 'PUT', body: { branch: branch.value, cgpa: Number(cgpa.value) } }); msg.textContent = 'Saved'; } catch (e) { msg.textContent = e.message; } };
+up.onclick = async () => {
+  if (!file.files[0]) return msg.textContent = 'Choose a PDF first';
+  const fd = new FormData(); fd.append('resume', file.files[0]);
+  try { const r = await api('/profile/resume', { method: 'POST', body: fd, isForm: true }); msg.textContent = r.message; show(r.data.skills); } catch (e) { msg.textContent = e.message; }
+};
+</script></body></html>

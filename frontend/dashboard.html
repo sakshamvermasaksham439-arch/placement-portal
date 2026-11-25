@@ -1,0 +1,67 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard</title><link rel="stylesheet" href="css/style.css"></head>
+<body><main id="app"><p class="muted">Loading...</p></main>
+<script type="module">
+import { api, requireAuth, navbar, esc } from './js/api.js';
+const u = requireAuth(); navbar(u);
+const app = document.getElementById('app');
+const badges = (a, c) => a.map(s => `<span class="badge ${c}">${esc(s)}</span>`).join('');
+const err = (e) => app.innerHTML = `<p class="error">${esc(e.message)}</p>`;
+window.act = async (fn) => { try { const r = await fn(); alert(r.message || 'Done'); render(); } catch (e) { alert(e.message); } };
+
+async function student() {
+  const { data } = await api('/jobs/recommended').catch(e => ({ data: null, e }));
+  if (!data) return app.innerHTML = '<div class="card">Upload your resume (Resume tab) to see matched jobs.</div>';
+  app.innerHTML = '<h2>Recommended jobs</h2>' + (data.length ? data.map(({ job, matchScore, matchedSkills, missingSkills }) => `
+    <div class="card"><div class="row"><div><h3>${esc(job.title)} <span class="muted">@ ${esc(job.company)}</span></h3>
+    <div>${badges(matchedSkills, 'ok')}${badges(missingSkills, 'miss')}</div><small class="muted">Green = you have, red = skill gap</small></div>
+    <div><span class="score">${matchScore}%</span> match</div></div>
+    <button class="btn" onclick="act(()=>window.apply('${job._id}'))">Apply</button>
+    <button class="btn" style="background:var(--primary)" onclick="window.askRef('${job._id}')">Request referral</button></div>`).join('') : '<p class="muted">No eligible jobs yet.</p>');
+}
+window.apply = (id) => api(`/jobs/${id}/apply`, { method: 'POST' });
+window.askRef = async (job) => {
+  try {
+    const { data } = await api('/alumni'); if (!data.length) return alert('No alumni available');
+    const pick = prompt('Alumni:\n' + data.map((a, i) => `${i + 1}. ${a.name} (${a.company})`).join('\n') + '\nEnter number:'); const a = data[Number(pick) - 1]; if (!a) return;
+    await api('/referrals', { method: 'POST', body: { job, alumni: a._id, note: prompt('Note (optional)') || undefined } }); alert('Referral requested');
+  } catch (e) { alert(e.message); }
+};
+
+async function recruiter() {
+  const { data } = await api('/jobs');
+  app.innerHTML = `<div class="card"><h3>Post a job</h3><input id="t" placeholder="Title"><input id="c" placeholder="Company" value="${esc(u.company || '')}">
+    <input id="s" placeholder="Required skills, comma separated (python, sql, react)"><input id="g" type="number" step="0.1" placeholder="Min CGPA">
+    <input id="d" placeholder="Description"><button class="btn" id="post">Post (needs TPO approval)</button></div><h2>My jobs</h2>` +
+    data.map(j => `<div class="card"><b>${esc(j.title)}</b> <span class="badge">${j.status}</span> ${badges(j.requiredSkills, '')}
+    <button class="btn" onclick="window.viewApps('${j._id}')">Ranked applicants</button><div id="a-${j._id}"></div></div>`).join('');
+  document.getElementById('post').onclick = () => act(() => api('/jobs', { method: 'POST', body: { title: t.value, company: c.value, description: d.value, minCGPA: Number(g.value) || 0, requiredSkills: s.value.split(',').map(x => x.trim()).filter(Boolean) } }));
+}
+window.viewApps = async (id) => {
+  const { data } = await api(`/jobs/${id}/applicants?sort=-matchScore`);
+  document.getElementById('a-' + id).innerHTML = data.length ? data.map(a => `<div class="card"><b>${esc(a.student.name)}</b> <span class="score">${a.matchScore}%</span> <span class="badge">${a.status}</span>
+    <div>${badges(a.matchedSkills, 'ok')}${badges(a.missingSkills, 'miss')}</div>
+    <button class="btn" onclick="act(()=>api('/applications/${a._id}',{method:'PUT',body:{status:'shortlisted'}}))">Shortlist</button>
+    <button class="btn" style="background:var(--danger)" onclick="act(()=>api('/applications/${a._id}',{method:'PUT',body:{status:'rejected'}}))">Reject</button></div>`).join('') : '<p class="muted">No applicants yet.</p>';
+};
+window.api = api;
+
+async function alumni() {
+  const { data } = await api('/referrals');
+  app.innerHTML = '<h2>Referral requests</h2>' + (data.length ? data.map(r => `<div class="card"><b>${esc(r.student.name)}</b> wants a referral for ${esc(r.job.title)} @ ${esc(r.job.company)}
+    <span class="badge">${r.status}</span><p class="muted">${esc(r.note || '')}</p>
+    <button class="btn" onclick="act(()=>api('/referrals/${r._id}',{method:'PUT',body:{status:'accepted'}}))">Accept</button>
+    <button class="btn" style="background:var(--danger)" onclick="act(()=>api('/referrals/${r._id}',{method:'PUT',body:{status:'rejected'}}))">Reject</button></div>`).join('') : '<p class="muted">None yet.</p>');
+}
+
+async function admin() {
+  const [s, j, us] = await Promise.all([api('/dashboard/stats'), api('/jobs?limit=50'), api('/admin/users')]);
+  const st = s.data;
+  app.innerHTML = `<div class="card"><h3>Placement stats</h3>Jobs: ${st.jobs} | Students: ${st.students} | ${st.applicationsByStatus.map(x => `${x._id}: ${x.count}`).join(' | ') || 'no applications'}</div>
+    <h3>Jobs</h3>` + j.data.map(x => `<div class="card"><b>${esc(x.title)}</b> @ ${esc(x.company)} <span class="badge">${x.status}</span>
+    ${x.status === 'pending' ? `<button class="btn" onclick="act(()=>api('/jobs/${x._id}',{method:'PUT',body:{status:'approved'}}))">Approve</button>` : ''}</div>`).join('') +
+    '<h3>Users</h3>' + us.data.map(x => `<div class="card">${esc(x.name)} (${x.role}) ${x.isActive ? '' : '<span class="badge miss">disabled</span>'}
+    <button class="btn" onclick="act(()=>api('/admin/users/${x._id}/toggle',{method:'PUT'}))">Toggle active</button></div>`).join('');
+}
+const render = () => ({ student, recruiter, alumni, admin }[u.role])().catch(err);
+render();
+</script></body></html>

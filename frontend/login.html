@@ -1,0 +1,13 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Login</title><link rel="stylesheet" href="css/style.css"></head>
+<body><main><div class="card" style="max-width:420px;margin:3rem auto"><h2>Login</h2>
+<input id="email" type="email" placeholder="Email"><input id="password" type="password" placeholder="Password">
+<p id="msg" class="error"></p><button class="btn" id="go">Login</button> <a href="register.html">Create account</a></div></main>
+<script type="module">
+import { api } from './js/api.js';
+document.getElementById('go').onclick = async () => {
+  try {
+    const { data } = await api('/auth/login', { method: 'POST', body: { email: email.value, password: password.value } });
+    localStorage.setItem('token', data.token); localStorage.setItem('user', JSON.stringify(data.user)); location.href = 'dashboard.html';
+  } catch (e) { msg.textContent = e.message; }
+};
+</script></body></html>
