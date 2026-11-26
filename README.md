@@ -1,7 +1,5 @@
-🎓 Campus Placement & Referral Portal
-
-Auto-Resume Matcher | Full-Stack Recruitment Platform
-
+# Campus Placement & Referral Portal (Auto-Resume Matcher)
+MERN-style full-stack project (HTML/CSS/JS frontend + Node/Express + MongoDB).
 A full-stack Campus Placement & Referral Portal designed to streamline campus recruitment by connecting students, recruiters, alumni, and administrators through an intelligent resume-matching system.
 
 The platform automatically analyzes resumes, extracts candidate skills, calculates job compatibility scores, identifies skill gaps, and recommends relevant placement opportunities.
